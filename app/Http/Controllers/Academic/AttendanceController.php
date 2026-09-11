@@ -12,18 +12,21 @@ class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
+        $classes = DB::table('classes')->orderBy('level')->orderBy('stream')->get();
         $selectedDate = $request->query('date', now()->toDateString());
-        $currentClass = DB::table('classes')->first();
+        $selectedClassId = $request->query('class_id', $classes->first()?->id);
+
+        $currentClass = $classes->firstWhere('id', $selectedClassId);
 
         if (!$currentClass) {
             return Inertia::render('Academic/AttendanceRegister', [
+                'classes' => $classes,
                 'students' => [],
                 'selectedDate' => $selectedDate,
                 'currentClass' => null,
             ]);
         }
 
-        // Fetch students and their attendance status for the selected date
         $students = DB::table('students')
             ->leftJoin('attendance', function ($join) use ($selectedDate) {
                 $join->on('students.id', '=', 'attendance.student_id')
@@ -51,19 +54,11 @@ class AttendanceController extends Controller
                 ];
             });
 
-        // Weekly summary statistics
-        $stats = [
-            'total' => $students->count(),
-            'present' => $students->where('status', 'PRESENT')->count(),
-            'absent' => $students->where('status', 'ABSENT')->count(),
-            'late' => $students->where('status', 'LATE')->count(),
-        ];
-
         return Inertia::render('Academic/AttendanceRegister', [
+            'classes' => $classes,
             'students' => $students,
             'selectedDate' => $selectedDate,
             'currentClass' => $currentClass,
-            'stats' => $stats,
         ]);
     }
 

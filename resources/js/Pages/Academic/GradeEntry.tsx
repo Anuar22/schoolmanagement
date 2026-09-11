@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AcademicFilterBar from '@/Components/AcademicFilterBar';
 import { Head } from '@inertiajs/react';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import axios from 'axios';
@@ -13,8 +14,23 @@ interface StudentRow {
     remarks: string | null;
 }
 
+interface FilterItem {
+    id: string;
+    name: string;
+    stream?: string;
+    code?: string;
+}
+
 interface Props {
-    term: { name: string };
+    terms: FilterItem[];
+    classes: FilterItem[];
+    subjects: FilterItem[];
+    filters: {
+        term_id: string;
+        class_id: string;
+        subject_id: string;
+    };
+    term: { name: string } | null;
     assessment: {
         id: string;
         class_name: string;
@@ -22,11 +38,19 @@ interface Props {
         subject_name: string;
         assessment_name: string;
         max_score: number;
-    };
+    } | null;
     students: StudentRow[];
 }
 
-export default function GradeEntry({ term, assessment, students: initialStudents }: Props) {
+export default function GradeEntry({
+    terms,
+    classes,
+    subjects,
+    filters,
+    term,
+    assessment,
+    students: initialStudents,
+}: Props) {
     const [rows, setRows] = useState(
         initialStudents.map((s) => ({
             ...s,
@@ -35,6 +59,16 @@ export default function GradeEntry({ term, assessment, students: initialStudents
         }))
     );
 
+    useEffect(() => {
+        setRows(
+            initialStudents.map((s) => ({
+                ...s,
+                score: s.score ?? '',
+                saveStatus: 'idle',
+            }))
+        );
+    }, [initialStudents]);
+
     const handleScoreChange = (index: number, val: string) => {
         const next = [...rows];
         next[index].score = val;
@@ -42,6 +76,7 @@ export default function GradeEntry({ term, assessment, students: initialStudents
     };
 
     const saveScore = async (index: number) => {
+        if (!assessment) return;
         const row = rows[index];
         if (row.score === '' || isNaN(Number(row.score))) return;
 
@@ -87,66 +122,96 @@ export default function GradeEntry({ term, assessment, students: initialStudents
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex justify-between items-center">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">
-                            {assessment.subject_name} — {assessment.assessment_name}
+                        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#111827', margin: 0 }}>
+                            {assessment ? `${assessment.subject_name} — ${assessment.assessment_name}` : 'Grade Entry'}
                         </h2>
-                        <p className="text-sm text-gray-500">
-                            {assessment.class_name} ({assessment.stream}) | {term?.name}
+                        <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>
+                            {assessment ? `${assessment.class_name} (${assessment.stream}) | ${term?.name}` : 'Select a stream and subject to begin'}
                         </p>
                     </div>
-                    <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200 font-medium">
-                        Max Score: {assessment.max_score}
-                    </span>
+                    {assessment && (
+                        <span style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#ecfdf5', color: '#065f46', padding: '6px 12px', borderRadius: '9999px', border: '1px solid #a7f3d0' }}>
+                            Max Score: {assessment.max_score}
+                        </span>
+                    )}
                 </div>
             }
         >
             <Head title="Mark Entry Grid" />
 
-            <div className="py-8 max-w-5xl mx-auto px-4 sm:px-6">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-gray-50/75 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                <th className="py-3.5 px-6">Admission #</th>
-                                <th className="py-3.5 px-6">Student Name</th>
-                                <th className="py-3.5 px-6 w-44">Score / {assessment.max_score}</th>
-                                <th className="py-3.5 px-6 text-center">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm">
-                            {rows.map((row, idx) => (
-                                <tr key={row.student_id} className="hover:bg-slate-50/60 transition-colors">
-                                    <td className="py-3.5 px-6 font-mono text-gray-600 text-xs">{row.admission_number}</td>
-                                    <td className="py-3.5 px-6 font-medium text-gray-800">
-                                        {row.last_name}, {row.first_name}
-                                    </td>
-                                    <td className="py-3.5 px-6">
-                                        <input
-                                            id={`score-input-${idx}`}
-                                            type="number"
-                                            value={row.score}
-                                            onChange={(e) => handleScoreChange(idx, e.target.value)}
-                                            onBlur={() => saveScore(idx)}
-                                            onKeyDown={(e) => handleKeyDown(e, idx)}
-                                            className={`w-28 text-center font-semibold rounded-md text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 ${
-                                                row.saveStatus === 'error' ? 'border-red-500 bg-red-50 text-red-700' : ''
-                                            }`}
-                                            placeholder="0 - 100"
-                                        />
-                                    </td>
-                                    <td className="py-3.5 px-6 text-center">
-                                        {row.saveStatus === 'saving' && <RefreshCw className="w-4 h-4 text-blue-500 animate-spin inline" />}
-                                        {row.saveStatus === 'saved' && <CheckCircle2 className="w-4 h-4 text-emerald-500 inline" />}
-                                        {row.saveStatus === 'error' && <AlertCircle className="w-4 h-4 text-rose-500 inline" />}
-                                        {row.saveStatus === 'idle' && <span className="text-gray-300">—</span>}
-                                    </td>
+            <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                {/* Universal Context Selector */}
+                <AcademicFilterBar
+                    terms={terms}
+                    classes={classes}
+                    subjects={subjects}
+                    selectedTermId={filters.term_id}
+                    selectedClassId={filters.class_id}
+                    selectedSubjectId={filters.subject_id}
+                    routeName="grades.index"
+                />
+
+                {/* Marksheet Grid */}
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    {rows.length === 0 ? (
+                        <div style={{ padding: '48px 16px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
+                            No active students found enrolled in this stream.
+                        </div>
+                    ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>
+                                    <th style={{ padding: '12px 20px', width: '160px' }}>Admission #</th>
+                                    <th style={{ padding: '12px 20px' }}>Student Name</th>
+                                    <th style={{ padding: '12px 20px', width: '180px' }}>Score / {assessment?.max_score}</th>
+                                    <th style={{ padding: '12px 20px', textAlign: 'center', width: '100px' }}>Status</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {rows.map((row, idx) => (
+                                    <tr key={row.student_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                        <td style={{ padding: '12px 20px', fontFamily: 'monospace', color: '#4b5563' }}>{row.admission_number}</td>
+                                        <td style={{ padding: '12px 20px', fontWeight: 600, color: '#111827' }}>
+                                            {row.last_name}, {row.first_name}
+                                        </td>
+                                        <td style={{ padding: '12px 20px' }}>
+                                            <input
+                                                id={`score-input-${idx}`}
+                                                type="number"
+                                                value={row.score}
+                                                onChange={(e) => handleScoreChange(idx, e.target.value)}
+                                                onBlur={() => saveScore(idx)}
+                                                onKeyDown={(e) => handleKeyDown(e, idx)}
+                                                style={{
+                                                    width: '100px',
+                                                    textAlign: 'center',
+                                                    fontWeight: 700,
+                                                    fontSize: '14px',
+                                                    padding: '6px 8px',
+                                                    borderRadius: '6px',
+                                                    border: row.saveStatus === 'error' ? '1px solid #ef4444' : '1px solid #d1d5db',
+                                                    backgroundColor: row.saveStatus === 'error' ? '#fef2f2' : '#ffffff',
+                                                    outline: 'none',
+                                                }}
+                                                placeholder="0 - 100"
+                                            />
+                                        </td>
+                                        <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                                            {row.saveStatus === 'saving' && <RefreshCw style={{ width: '16px', height: '16px', color: '#3b82f6', display: 'inline', animation: 'spin 1s linear infinite' }} />}
+                                            {row.saveStatus === 'saved' && <CheckCircle2 style={{ width: '16px', height: '16px', color: '#10b981', display: 'inline' }} />}
+                                            {row.saveStatus === 'error' && <AlertCircle style={{ width: '16px', height: '16px', color: '#ef4444', display: 'inline' }} />}
+                                            {row.saveStatus === 'idle' && <span style={{ color: '#d1d5db' }}>—</span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
+
             </div>
         </AuthenticatedLayout>
     );

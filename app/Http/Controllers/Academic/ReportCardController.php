@@ -11,18 +11,29 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportCardController extends Controller
 {
-    public function index(AcademicCalculationService $calculationService)
+    public function index(Request $request, AcademicCalculationService $calculationService)
     {
-        $term = DB::table('terms')->where('is_active', true)->first();
-        $class = DB::table('classes')->first();
+        $terms = DB::table('terms')->orderByDesc('start_date')->get();
+        $classes = DB::table('classes')->orderBy('level')->orderBy('stream')->get();
+
+        $selectedTermId = $request->query('term_id', $terms->firstWhere('is_active', true)?->id ?? $terms->first()?->id);
+        $selectedClassId = $request->query('class_id', $classes->first()?->id);
+
+        $term = $terms->firstWhere('id', $selectedTermId);
+        $class = $classes->firstWhere('id', $selectedClassId);
 
         if (!$term || !$class) {
-            return Inertia::render('Academic/ReportSummary', ['summary' => []]);
+            return Inertia::render('Academic/ReportSummary', [
+                'terms' => $terms,
+                'classes' => $classes,
+                'filters' => ['term_id' => $selectedTermId, 'class_id' => $selectedClassId],
+                'summary' => [],
+            ]);
         }
 
         $summary = $calculationService->calculateClassSummary($class->id, $term->id);
 
-        // Attach fee clearance status to each student record
+        // Attach fee clearance status
         $studentIds = collect($summary)->pluck('student_id');
         $invoices = DB::table('fee_invoices')
             ->where('term_id', $term->id)
@@ -39,6 +50,12 @@ class ReportCardController extends Controller
         }
 
         return Inertia::render('Academic/ReportSummary', [
+            'terms' => $terms,
+            'classes' => $classes,
+            'filters' => [
+                'term_id' => $selectedTermId,
+                'class_id' => $selectedClassId,
+            ],
             'term' => $term,
             'currentClass' => $class,
             'summary' => $summary,
