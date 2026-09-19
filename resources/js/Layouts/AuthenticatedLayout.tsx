@@ -2,11 +2,20 @@ import { PropsWithChildren, ReactNode } from 'react';
 import Dropdown from '@/Components/Dropdown';
 import { Link, usePage } from '@inertiajs/react';
 import { LayoutDashboard, ClipboardList, Award, CalendarCheck, DollarSign, Users2 } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react'; // import icon
 
 interface User {
     id: number;
     name: string;
     email: string;
+    role?: 'admin' | 'teacher' | 'bursar' | 'super_admin' | string;
+}
+
+interface NavItem {
+    name: string;
+    route: string;
+    icon: typeof LayoutDashboard;
+    roles: string[];
 }
 
 export default function AuthenticatedLayout({
@@ -15,15 +24,55 @@ export default function AuthenticatedLayout({
 }: PropsWithChildren<{ header?: ReactNode }>) {
     const { auth } = usePage<{ auth: { user: User } }>().props;
     const user = auth?.user;
+    const userRole = user?.role ?? 'teacher';
 
-    const navItems = [
-        { name: 'Command Desk', route: 'academic.desk', icon: LayoutDashboard },
-        { name: 'Marksheet Grid', route: 'grades.index', icon: ClipboardList },
-        { name: 'Class Standings', route: 'academic.summary', icon: Award },
-        { name: 'Attendance', route: 'attendance.index', icon: CalendarCheck },
-        { name: 'Fees Ledger', route: 'fees.index', icon: DollarSign },
-        { name: 'Staff & Students', route: 'roster.index', icon: Users2 },
+    const allNavItems: NavItem[] = [
+        { 
+            name: 'Command Desk', 
+            route: 'academic.desk', 
+            icon: LayoutDashboard, 
+            roles: ['admin', 'super_admin', 'teacher'] 
+        },
+        { 
+            name: 'Marksheet Grid', 
+            route: 'grades.index', 
+            icon: ClipboardList, 
+            roles: ['admin', 'super_admin', 'teacher'] 
+        },
+        { 
+            name: 'Class Standings', 
+            route: 'academic.summary', 
+            icon: Award, 
+            roles: ['admin', 'super_admin', 'teacher'] 
+        },
+        { 
+            name: 'Attendance', 
+            route: 'attendance.index', 
+            icon: CalendarCheck, 
+            roles: ['admin', 'super_admin', 'teacher'] 
+        },
+        { 
+            name: 'Fees Ledger', 
+            route: 'fees.index', 
+            icon: DollarSign, 
+            roles: ['admin', 'super_admin', 'bursar'] 
+        },
+        { 
+            name: 'Staff & Students', 
+            route: 'roster.index', 
+            icon: Users2, 
+            roles: ['admin', 'super_admin'] 
+        },
+        { 
+            name: 'Audit Trail', 
+            route: 'audit.index', 
+            icon: ShieldAlert, 
+            roles: ['admin', 'super_admin'] 
+        },
     ];
+
+    // Filter links based on current user role
+    const visibleNavItems = allNavItems.filter((item) => item.roles.includes(userRole));
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
@@ -34,7 +83,7 @@ export default function AuthenticatedLayout({
                     {/* Brand & Main Links */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '24px', overflowX: 'auto' }}>
                         <Link
-                            href={route('academic.desk')}
+                            href={route('dashboard')}
                             style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', flexShrink: 0 }}
                         >
                             <div style={{ width: '36px', height: '36px', backgroundColor: '#4f46e5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
@@ -45,9 +94,9 @@ export default function AuthenticatedLayout({
                             </span>
                         </Link>
 
-                        {/* Navigation Links */}
+                        {/* Role-Filtered Navigation Links */}
                         <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                            {navItems.map((item) => {
+                            {visibleNavItems.map((item) => {
                                 const Icon = item.icon;
                                 const isActive = route().current(item.route);
 
@@ -78,8 +127,8 @@ export default function AuthenticatedLayout({
                         </div>
                     </div>
 
-                    {/* User Profile Menu */}
-                    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {/* User Profile & Role Indicator */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                         <Dropdown>
                             <Dropdown.Trigger>
                                 <button
@@ -99,6 +148,17 @@ export default function AuthenticatedLayout({
                                     }}
                                 >
                                     <span>{user?.name ?? 'Account'}</span>
+                                    <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        backgroundColor: userRole === 'admin' ? '#eef2ff' : userRole === 'bursar' ? '#ecfdf5' : '#f3f4f6',
+                                        color: userRole === 'admin' ? '#4338ca' : userRole === 'bursar' ? '#047857' : '#4b5563',
+                                        textTransform: 'uppercase'
+                                    }}>
+                                        {userRole}
+                                    </span>
                                     <svg
                                         style={{ width: '14px', height: '14px', color: '#9ca3af' }}
                                         xmlns="http://www.w3.org/2000/svg"
@@ -115,7 +175,8 @@ export default function AuthenticatedLayout({
                             </Dropdown.Trigger>
 
                             <Dropdown.Content>
-                                <Dropdown.Link href={route('profile.edit')}>Profile</Dropdown.Link>
+                                <Dropdown.Link href={route('dashboard')}>Dashboard</Dropdown.Link>
+                                <Dropdown.Link href={route('profile.edit')}>Profile Settings</Dropdown.Link>
                                 <Dropdown.Link href={route('logout')} method="post" as="button">
                                     Log Out
                                 </Dropdown.Link>
@@ -126,7 +187,7 @@ export default function AuthenticatedLayout({
                 </div>
             </nav>
 
-            {/* Optional Context Header */}
+            {/* Context Header */}
             {header && (
                 <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #f3f4f6' }}>
                     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px' }}>

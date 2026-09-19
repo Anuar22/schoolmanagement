@@ -29,11 +29,21 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $tenantManager = app(\App\Services\TenantManager::class);
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role ?? 'teacher',
+                    'tenant_id' => $user->tenant_id,
+                ] : null,
             ],
+            'tenant' => $tenantManager->getTenant(),
         ];
     }
 }

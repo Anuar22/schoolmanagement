@@ -11,38 +11,43 @@ import {
     ArrowRight 
 } from 'lucide-react';
 
-interface Props {
-    term: { name: string } | null;
-    metrics: {
-        total_students: number;
-        total_teachers: number;
-        total_classes: number;
-        collection_rate: number;
-        total_collected: number;
-        total_invoiced: number;
-        attendance_rate: number | null;
-        present_today: number;
-        absent_today: number;
-    };
-    recentPayments: Array<{
-        receipt_number: string;
-        amount: number;
-        payment_method: string;
-        created_at: string;
-        first_name: string;
-        last_name: string;
-        admission_number: string;
-    }>;
+interface MetricPayload {
+    total_students: number;
+    total_teachers: number;
+    total_classes: number;
+    collection_rate: number;
+    total_collected: number;
+    total_invoiced: number;
+    attendance_rate: number | null;
+    present_today: number;
+    absent_today: number;
 }
 
-export default function Dashboard({ term, metrics, recentPayments }: Props) {
-    const { auth } = usePage<{ auth: { user: { name: string } } }>().props;
+interface PaymentRecord {
+    receipt_number: string;
+    amount: number | string;
+    payment_method: string;
+    created_at: string;
+    first_name: string;
+    last_name: string;
+    admission_number: string;
+}
+
+interface Props {
+    term?: { name: string } | null;
+    metrics?: MetricPayload;
+    recentPayments?: PaymentRecord[];
+}
+
+export default function Dashboard({ term, metrics, recentPayments = [] }: Props) {
+    const pageProps = usePage().props as unknown as { auth?: { user?: { name?: string } } };
+    const userName = pageProps.auth?.user?.name ?? 'Administrator';
 
     const quickLinks = [
         {
             title: 'Academic Command Desk',
             description: 'Early warning radar, department curves & exam standings',
-            href: route('academic.desk'),
+            href: '/academic-desk',
             icon: GraduationCap,
             accent: '#4f46e5',
             badge: 'Real-time',
@@ -50,7 +55,7 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
         {
             title: 'Marksheet Grid',
             description: 'Auto-saving continuous test & exam entry matrix',
-            href: route('grades.index'),
+            href: '/grades',
             icon: ClipboardList,
             accent: '#2563eb',
             badge: 'Active Term',
@@ -58,7 +63,7 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
         {
             title: 'Official Report Cards',
             description: 'Class rankings and automated PDF transcript release',
-            href: route('academic.summary'),
+            href: '/academic-summary',
             icon: Award,
             accent: '#059669',
             badge: 'End of Term',
@@ -66,7 +71,7 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
         {
             title: 'Attendance Register',
             description: 'One-click morning roll-call & absenteeism radar',
-            href: route('attendance.index'),
+            href: '/attendance',
             icon: CalendarCheck,
             accent: '#d97706',
             badge: 'Daily',
@@ -74,7 +79,7 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
         {
             title: 'Fee Collection & Bursar',
             description: 'Receivables tracking, payment receipts & financial clearance',
-            href: route('fees.index'),
+            href: '/fees',
             icon: DollarSign,
             accent: '#059669',
             badge: 'Bursar',
@@ -82,12 +87,18 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
         {
             title: 'Staff & Student Directory',
             description: 'Admissions, class stream assignments & teacher allocations',
-            href: route('roster.index'),
+            href: '/roster',
             icon: Users,
             accent: '#9333ea',
             badge: 'Admin',
         },
     ];
+
+    const safeNumber = (val: number | string | null | undefined): number => {
+        if (val === null || val === undefined) return 0;
+        const parsed = Number(val);
+        return isNaN(parsed) ? 0 : parsed;
+    };
 
     return (
         <AuthenticatedLayout
@@ -98,12 +109,12 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                             Institutional Overview
                         </h2>
                         <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>
-                            Welcome back, {auth?.user?.name ?? 'Administrator'} — {term?.name ?? 'No Active Term'}
+                            Welcome back, {userName} — {term?.name ?? 'No Active Term'}
                         </p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <Link
-                            href={route('grades.index')}
+                            href="/grades"
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -135,10 +146,10 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                         <div>
                             <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Active Students</span>
                             <div style={{ fontSize: '26px', fontWeight: 800, color: '#111827', marginTop: '4px' }}>
-                                {metrics?.total_students ?? 0}
+                                {safeNumber(metrics?.total_students)}
                             </div>
                             <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                Across {metrics?.total_classes ?? 0} Streams
+                                Across {safeNumber(metrics?.total_classes)} Streams
                             </span>
                         </div>
                         <div style={{ width: '44px', height: '44px', backgroundColor: '#eff6ff', color: '#2563eb', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -150,11 +161,11 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                     <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                         <div>
                             <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Today's Roll-Call</span>
-                            <div style={{ fontSize: '26px', fontWeight: 800, color: metrics?.attendance_rate !== null ? '#059669' : '#6b7280', marginTop: '4px' }}>
-                                {metrics?.attendance_rate !== null ? `${metrics.attendance_rate}%` : 'Pending'}
+                            <div style={{ fontSize: '26px', fontWeight: 800, color: metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? '#059669' : '#6b7280', marginTop: '4px' }}>
+                                {metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? `${safeNumber(metrics.attendance_rate)}%` : 'Pending'}
                             </div>
                             <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                {metrics?.attendance_rate !== null ? `${metrics.present_today} Present • ${metrics.absent_today} Absent` : 'Not recorded yet'}
+                                {metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? `${safeNumber(metrics.present_today)} Present • ${safeNumber(metrics.absent_today)} Absent` : 'Not recorded yet'}
                             </span>
                         </div>
                         <div style={{ width: '44px', height: '44px', backgroundColor: '#fffbeb', color: '#d97706', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -167,10 +178,10 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                         <div>
                             <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Fee Collection Rate</span>
                             <div style={{ fontSize: '26px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>
-                                {metrics?.collection_rate ?? 0}%
+                                {safeNumber(metrics?.collection_rate)}%
                             </div>
                             <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                TZS {(metrics?.total_collected ?? 0).toLocaleString()}
+                                TZS {safeNumber(metrics?.total_collected).toLocaleString()}
                             </span>
                         </div>
                         <div style={{ width: '44px', height: '44px', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -183,7 +194,7 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                         <div>
                             <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Academic Staff</span>
                             <div style={{ fontSize: '26px', fontWeight: 800, color: '#111827', marginTop: '4px' }}>
-                                {metrics?.total_teachers ?? 0}
+                                {safeNumber(metrics?.total_teachers)}
                             </div>
                             <span style={{ fontSize: '12px', color: '#6b7280' }}>Active Instructors</span>
                         </div>
@@ -245,12 +256,12 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                             <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>Recent Fee Receipts</h3>
                             <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>Latest automated collections credited to accounts</p>
                         </div>
-                        <Link href={route('fees.index')} style={{ fontSize: '12px', fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}>
+                        <Link href="/fees" style={{ fontSize: '12px', fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}>
                             View All →
                         </Link>
                     </div>
 
-                    {(!recentPayments || recentPayments.length === 0) ? (
+                    {recentPayments.length === 0 ? (
                         <div style={{ padding: '24px 0', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>
                             No fee payments recorded this term yet.
                         </div>
@@ -269,7 +280,7 @@ export default function Dashboard({ term, metrics, recentPayments }: Props) {
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                         <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669' }}>
-                                            + TZS {Number(p.amount).toLocaleString()}
+                                            + TZS {safeNumber(p.amount).toLocaleString()}
                                         </div>
                                         <div style={{ fontSize: '10px', color: '#9ca3af' }}>{new Date(p.created_at).toLocaleDateString()}</div>
                                     </div>
