@@ -1,203 +1,248 @@
-import { PropsWithChildren, ReactNode } from 'react';
+import { PropsWithChildren, ReactNode, useState } from 'react';
 import Dropdown from '@/Components/Dropdown';
+import NavLink from '@/Components/NavLink';
+import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
-import { LayoutDashboard, ClipboardList, Award, CalendarCheck, DollarSign, Users2 } from 'lucide-react';
-import { ShieldAlert } from 'lucide-react'; // import icon
-
-interface User {
-    id: number;
-    name: string;
-    email: string;
-    role?: 'admin' | 'teacher' | 'bursar' | 'super_admin' | string;
-}
-
-interface NavItem {
-    name: string;
-    route: string;
-    icon: typeof LayoutDashboard;
-    roles: string[];
-}
+import { PageProps } from '@/types';
+import { 
+    LayoutDashboard, 
+    ClipboardList, 
+    CalendarCheck, 
+    DollarSign, 
+    Users, 
+    TrendingUp, 
+    ShieldAlert, 
+    Award,
+    GraduationCap
+} from 'lucide-react';
 
 export default function AuthenticatedLayout({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const { auth } = usePage<{ auth: { user: User } }>().props;
-    const user = auth?.user;
-    const userRole = user?.role ?? 'teacher';
+    const page = usePage<PageProps>();
+    const props = page.props || {};
+    const auth = props.auth || ({} as any);
+    const tenant = props.tenant || null;
+    const user = auth?.user || null;
+    
+    // Safe fallback so no undefined access can crash the component
+    const userRole = (user?.role || 'teacher').toLowerCase();
+    const userName = user?.name || 'Staff User';
+    const userEmail = user?.email || '';
 
-    const allNavItems: NavItem[] = [
-        { 
-            name: 'Command Desk', 
-            route: 'academic.desk', 
-            icon: LayoutDashboard, 
-            roles: ['admin', 'super_admin', 'teacher'] 
+    const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
+
+    const allNavItems = [
+        {
+            name: 'Dashboard',
+            route: 'dashboard',
+            icon: LayoutDashboard,
+            roles: ['admin', 'super_admin', 'teacher', 'bursar'],
         },
-        { 
-            name: 'Marksheet Grid', 
-            route: 'grades.index', 
-            icon: ClipboardList, 
-            roles: ['admin', 'super_admin', 'teacher'] 
+        {
+            name: 'Academic Desk',
+            route: 'academic.desk',
+            icon: TrendingUp,
+            roles: ['admin', 'super_admin', 'teacher'],
         },
-        { 
-            name: 'Class Standings', 
-            route: 'academic.summary', 
-            icon: Award, 
-            roles: ['admin', 'super_admin', 'teacher'] 
+        {
+            name: 'Marksheet Grid',
+            route: 'grades.index',
+            icon: ClipboardList,
+            roles: ['admin', 'super_admin', 'teacher'],
         },
-        { 
-            name: 'Attendance', 
-            route: 'attendance.index', 
-            icon: CalendarCheck, 
-            roles: ['admin', 'super_admin', 'teacher'] 
+        {
+            name: 'Attendance',
+            route: 'attendance.index',
+            icon: CalendarCheck,
+            roles: ['admin', 'super_admin', 'teacher'],
         },
-        { 
-            name: 'Fees Ledger', 
-            route: 'fees.index', 
-            icon: DollarSign, 
-            roles: ['admin', 'super_admin', 'bursar'] 
+        {
+            name: 'Fees Ledger',
+            route: 'fees.index',
+            icon: DollarSign,
+            roles: ['admin', 'super_admin', 'bursar'],
         },
-        { 
-            name: 'Staff & Students', 
-            route: 'roster.index', 
-            icon: Users2, 
-            roles: ['admin', 'super_admin'] 
+        {
+            name: 'Staff & Students',
+            route: 'roster.index',
+            icon: Users,
+            roles: ['admin', 'super_admin'],
         },
-        { 
-            name: 'Audit Trail', 
-            route: 'audit.index', 
-            icon: ShieldAlert, 
-            roles: ['admin', 'super_admin'] 
+        {
+            name: 'Report Cards',
+            route: 'academic.summary',
+            icon: Award,
+            roles: ['admin', 'super_admin', 'teacher'],
+        },
+        {
+            name: 'Audit Trail',
+            route: 'audit.index',
+            icon: ShieldAlert,
+            roles: ['admin', 'super_admin'],
         },
     ];
 
-    // Filter links based on current user role
-    const visibleNavItems = allNavItems.filter((item) => item.roles.includes(userRole));
+    const authorizedNavItems = allNavItems.filter((item) => item.roles.includes(userRole));
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
-            {/* Top Navigation Bar */}
-            <nav style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 40 }}>
-                <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px' }}>
-                    
-                    {/* Brand & Main Links */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px', overflowX: 'auto' }}>
-                        <Link
-                            href={route('dashboard')}
-                            style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', flexShrink: 0 }}
-                        >
-                            <div style={{ width: '36px', height: '36px', backgroundColor: '#4f46e5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
-                                <LayoutDashboard style={{ width: '20px', height: '20px' }} />
+        <div className="min-h-screen bg-slate-50">
+            <nav className="border-b border-slate-200 bg-white shadow-xs">
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div className="flex h-16 justify-between">
+                        <div className="flex">
+                            {/* Brand / Tenant Title */}
+                            <div className="flex shrink-0 items-center">
+                                <Link href={route('dashboard')} className="flex items-center gap-2 text-indigo-600 font-extrabold text-lg">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
+                                        <GraduationCap className="h-5 w-5" />
+                                    </div>
+                                    <div className="hidden sm:block">
+                                        <span className="text-slate-900 font-bold tracking-tight">
+                                            {tenant?.name ?? 'EduCore'}
+                                        </span>
+                                    </div>
+                                </Link>
                             </div>
-                            <span style={{ fontSize: '16px', fontWeight: 800, color: '#111827', letterSpacing: '-0.02em' }}>
-                                EduCore
-                            </span>
-                        </Link>
 
-                        {/* Role-Filtered Navigation Links */}
-                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                            {visibleNavItems.map((item) => {
-                                const Icon = item.icon;
-                                const isActive = route().current(item.route);
+                            {/* Desktop Navigation */}
+                            <div className="hidden space-x-6 sm:-my-px sm:ms-8 sm:flex">
+                                {authorizedNavItems.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <NavLink
+                                            key={item.route}
+                                            href={route(item.route)}
+                                            active={route().current(item.route)}
+                                        >
+                                            <span className="flex items-center gap-1.5 py-1">
+                                                <Icon className="h-4 w-4" />
+                                                <span>{item.name}</span>
+                                            </span>
+                                        </NavLink>
+                                    );
+                                })}
+                            </div>
+                        </div>
 
-                                return (
-                                    <Link
-                                        key={item.route}
-                                        href={route(item.route)}
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            padding: '8px 12px',
-                                            borderRadius: '8px',
-                                            fontSize: '13px',
-                                            fontWeight: 600,
-                                            textDecoration: 'none',
-                                            whiteSpace: 'nowrap',
-                                            backgroundColor: isActive ? '#eef2ff' : 'transparent',
-                                            color: isActive ? '#4f46e5' : '#4b5563',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                    >
-                                        <Icon style={{ width: '16px', height: '16px', color: isActive ? '#4f46e5' : '#6b7280' }} />
-                                        <span>{item.name}</span>
-                                    </Link>
-                                );
-                            })}
+                        {/* User Profile / Status Dropdown */}
+                        <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                            <div className="relative ms-3">
+                                <Dropdown>
+                                    <Dropdown.Trigger>
+                                        <span className="inline-flex rounded-md">
+                                            <button
+                                                type="button"
+                                                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+                                            >
+                                                <span>{userName}</span>
+                                                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                                    userRole === 'admin' || userRole === 'super_admin'
+                                                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' 
+                                                        : userRole === 'bursar'
+                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                        : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                                }`}>
+                                                    {userRole}
+                                                </span>
+                                                <svg
+                                                    className="-me-0.5 ms-1 h-4 w-4"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 20 20"
+                                                    fill="currentColor"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </Dropdown.Trigger>
+
+                                    <Dropdown.Content>
+                                        <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-100">
+                                            {userEmail}
+                                        </div>
+                                        <Dropdown.Link href={route('profile.edit')}>
+                                            Profile Settings
+                                        </Dropdown.Link>
+                                        <Dropdown.Link href={route('logout')} method="post" as="button">
+                                            Log Out
+                                        </Dropdown.Link>
+                                    </Dropdown.Content>
+                                </Dropdown>
+                            </div>
+                        </div>
+
+                        {/* Mobile Hamburger */}
+                        <div className="-me-2 flex items-center sm:hidden">
+                            <button
+                                onClick={() => setShowingNavigationDropdown((previousState) => !previousState)}
+                                className="inline-flex items-center justify-center rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-500 focus:outline-none"
+                            >
+                                <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                                    <path
+                                        className={!showingNavigationDropdown ? 'inline-flex' : 'hidden'}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M4 6h16M4 12h16M4 18h16"
+                                    />
+                                    <path
+                                        className={showingNavigationDropdown ? 'inline-flex' : 'hidden'}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
                         </div>
                     </div>
+                </div>
 
-                    {/* User Profile & Role Indicator */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                        <Dropdown>
-                            <Dropdown.Trigger>
-                                <button
-                                    type="button"
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        padding: '6px 12px',
-                                        border: '1px solid #e5e7eb',
-                                        borderRadius: '8px',
-                                        backgroundColor: '#ffffff',
-                                        fontSize: '13px',
-                                        fontWeight: 600,
-                                        color: '#374151',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    <span>{user?.name ?? 'Account'}</span>
-                                    <span style={{
-                                        fontSize: '10px',
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: '4px',
-                                        backgroundColor: userRole === 'admin' ? '#eef2ff' : userRole === 'bursar' ? '#ecfdf5' : '#f3f4f6',
-                                        color: userRole === 'admin' ? '#4338ca' : userRole === 'bursar' ? '#047857' : '#4b5563',
-                                        textTransform: 'uppercase'
-                                    }}>
-                                        {userRole}
-                                    </span>
-                                    <svg
-                                        style={{ width: '14px', height: '14px', color: '#9ca3af' }}
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                    >
-                                        <path
-                                            fillRule="evenodd"
-                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                            clipRule="evenodd"
-                                        />
-                                    </svg>
-                                </button>
-                            </Dropdown.Trigger>
-
-                            <Dropdown.Content>
-                                <Dropdown.Link href={route('dashboard')}>Dashboard</Dropdown.Link>
-                                <Dropdown.Link href={route('profile.edit')}>Profile Settings</Dropdown.Link>
-                                <Dropdown.Link href={route('logout')} method="post" as="button">
-                                    Log Out
-                                </Dropdown.Link>
-                            </Dropdown.Content>
-                        </Dropdown>
+                {/* Mobile Menu */}
+                <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden'}>
+                    <div className="space-y-1 pb-3 pt-2">
+                        {authorizedNavItems.map((item) => (
+                            <ResponsiveNavLink
+                                key={item.route}
+                                href={route(item.route)}
+                                active={route().current(item.route)}
+                            >
+                                {item.name}
+                            </ResponsiveNavLink>
+                        ))}
                     </div>
 
+                    <div className="border-t border-slate-200 pb-1 pt-4">
+                        <div className="px-4">
+                            <div className="text-base font-medium text-slate-800">{userName}</div>
+                            <div className="text-sm font-medium text-slate-500">{userEmail}</div>
+                        </div>
+
+                        <div className="mt-3 space-y-1">
+                            <ResponsiveNavLink href={route('profile.edit')}>Profile</ResponsiveNavLink>
+                            <ResponsiveNavLink method="post" href={route('logout')} as="button">
+                                Log Out
+                            </ResponsiveNavLink>
+                        </div>
+                    </div>
                 </div>
             </nav>
 
-            {/* Context Header */}
             {header && (
-                <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #f3f4f6' }}>
-                    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px' }}>
+                <header className="bg-white border-b border-slate-200">
+                    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
                         {header}
                     </div>
                 </header>
             )}
 
-            {/* Page Body */}
-            <main style={{ flex: 1 }}>{children}</main>
+            <main>{children}</main>
         </div>
     );
 }

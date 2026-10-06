@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,8 +30,11 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $tenantManager = app(\App\Services\TenantManager::class);
+        $tenantManager = app(TenantManager::class);
         $user = $request->user();
+
+        // Query fresh attributes directly to ensure the exact PostgreSQL role is loaded
+        $role = $user ? ($user->fresh()?->role ?? $user->role ?? 'teacher') : null;
 
         return [
             ...parent::share($request),
@@ -39,11 +43,15 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'role' => $user->role ?? 'teacher',
+                    'role' => $role,
                     'tenant_id' => $user->tenant_id,
                 ] : null,
             ],
             'tenant' => $tenantManager->getTenant(),
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
         ];
     }
 }

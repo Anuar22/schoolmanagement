@@ -8,7 +8,8 @@ import {
     DollarSign, 
     ClipboardList, 
     Award, 
-    ArrowRight 
+    ArrowRight,
+    ShieldCheck
 } from 'lucide-react';
 
 interface MetricPayload {
@@ -40,10 +41,19 @@ interface Props {
 }
 
 export default function Dashboard({ term, metrics, recentPayments = [] }: Props) {
-    const pageProps = usePage().props as unknown as { auth?: { user?: { name?: string } } };
-    const userName = pageProps.auth?.user?.name ?? 'Administrator';
+    const pageProps = usePage().props as unknown as { auth?: { user?: { name?: string; role?: string } } };
+    const user = pageProps.auth?.user;
+    const userName = user?.name ?? 'Account';
+    const userRole = user?.role ?? 'teacher';
 
-    const quickLinks = [
+    const safeNumber = (val: number | string | null | undefined): number => {
+        if (val === null || val === undefined) return 0;
+        const parsed = Number(val);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    // Role-specific action tiles
+    const allQuickLinks = [
         {
             title: 'Academic Command Desk',
             description: 'Early warning radar, department curves & exam standings',
@@ -51,6 +61,7 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
             icon: GraduationCap,
             accent: '#4f46e5',
             badge: 'Real-time',
+            roles: ['admin', 'teacher'],
         },
         {
             title: 'Marksheet Grid',
@@ -59,6 +70,7 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
             icon: ClipboardList,
             accent: '#2563eb',
             badge: 'Active Term',
+            roles: ['admin', 'teacher'],
         },
         {
             title: 'Official Report Cards',
@@ -67,6 +79,7 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
             icon: Award,
             accent: '#059669',
             badge: 'End of Term',
+            roles: ['admin', 'teacher'],
         },
         {
             title: 'Attendance Register',
@@ -75,6 +88,7 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
             icon: CalendarCheck,
             accent: '#d97706',
             badge: 'Daily',
+            roles: ['admin', 'teacher'],
         },
         {
             title: 'Fee Collection & Bursar',
@@ -83,6 +97,7 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
             icon: DollarSign,
             accent: '#059669',
             badge: 'Bursar',
+            roles: ['admin', 'bursar'],
         },
         {
             title: 'Staff & Student Directory',
@@ -90,51 +105,72 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
             href: '/roster',
             icon: Users,
             accent: '#9333ea',
-            badge: 'Admin',
+            badge: 'Admin Only',
+            roles: ['admin'],
+        },
+        {
+            title: 'Audit Trail Ledger',
+            description: 'Tamper-evident logs of continuous grade inputs and payments',
+            href: '/audit-logs',
+            icon: ShieldCheck,
+            accent: '#dc2626',
+            badge: 'Security',
+            roles: ['admin'],
         },
     ];
 
-    const safeNumber = (val: number | string | null | undefined): number => {
-        if (val === null || val === undefined) return 0;
-        const parsed = Number(val);
-        return isNaN(parsed) ? 0 : parsed;
-    };
+    const quickLinks = allQuickLinks.filter((item) => item.roles.includes(userRole));
 
     return (
         <AuthenticatedLayout
             header={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
                     <div>
-                        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#111827', margin: 0 }}>
-                            Institutional Overview
-                        </h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#111827', margin: 0 }}>
+                                {userRole === 'admin' ? 'Institutional Command Console' : userRole === 'bursar' ? 'Bursar Financial Console' : 'Faculty Academic Console'}
+                            </h2>
+                            <span style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                backgroundColor: userRole === 'admin' ? '#eef2ff' : userRole === 'bursar' ? '#ecfdf5' : '#f3f4f6',
+                                color: userRole === 'admin' ? '#4338ca' : userRole === 'bursar' ? '#047857' : '#4b5563',
+                                textTransform: 'uppercase'
+                            }}>
+                                {userRole}
+                            </span>
+                        </div>
                         <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>
-                            Welcome back, {userName} — {term?.name ?? 'No Active Term'}
+                            Signed in as {userName} — {term?.name ?? 'No Active Term'}
                         </p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                        <Link
-                            href="/grades"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                backgroundColor: '#4f46e5',
-                                color: '#ffffff',
-                                padding: '8px 14px',
-                                borderRadius: '8px',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                textDecoration: 'none'
-                            }}
-                        >
-                            <ClipboardList style={{ width: '15px', height: '15px' }} /> Enter Marks
-                        </Link>
+                        {userRole !== 'bursar' && (
+                            <Link
+                                href="/grades"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    backgroundColor: '#4f46e5',
+                                    color: '#ffffff',
+                                    padding: '8px 14px',
+                                    borderRadius: '8px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    textDecoration: 'none'
+                                }}
+                            >
+                                <ClipboardList style={{ width: '15px', height: '15px' }} /> Enter Marks
+                            </Link>
+                        )}
                     </div>
                 </div>
             }
         >
-            <Head title="Institutional Dashboard" />
+            <Head title={`${userRole.toUpperCase()} Dashboard`} />
 
             <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
@@ -158,38 +194,42 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
                     </div>
 
                     {/* Attendance */}
-                    <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <div>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Today's Roll-Call</span>
-                            <div style={{ fontSize: '26px', fontWeight: 800, color: metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? '#059669' : '#6b7280', marginTop: '4px' }}>
-                                {metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? `${safeNumber(metrics.attendance_rate)}%` : 'Pending'}
+                    {userRole !== 'bursar' && (
+                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <div>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Today's Roll-Call</span>
+                                <div style={{ fontSize: '26px', fontWeight: 800, color: metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? '#059669' : '#6b7280', marginTop: '4px' }}>
+                                    {metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? `${safeNumber(metrics.attendance_rate)}%` : 'Pending'}
+                                </div>
+                                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                    {metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? `${safeNumber(metrics.present_today)} Present • ${safeNumber(metrics.absent_today)} Absent` : 'Not recorded yet'}
+                                </span>
                             </div>
-                            <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                {metrics?.attendance_rate !== null && metrics?.attendance_rate !== undefined ? `${safeNumber(metrics.present_today)} Present • ${safeNumber(metrics.absent_today)} Absent` : 'Not recorded yet'}
-                            </span>
-                        </div>
-                        <div style={{ width: '44px', height: '44px', backgroundColor: '#fffbeb', color: '#d97706', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <CalendarCheck style={{ width: '22px', height: '22px' }} />
-                        </div>
-                    </div>
-
-                    {/* Fees Collection */}
-                    <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <div>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Fee Collection Rate</span>
-                            <div style={{ fontSize: '26px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>
-                                {safeNumber(metrics?.collection_rate)}%
+                            <div style={{ width: '44px', height: '44px', backgroundColor: '#fffbeb', color: '#d97706', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <CalendarCheck style={{ width: '22px', height: '22px' }} />
                             </div>
-                            <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                TZS {safeNumber(metrics?.total_collected).toLocaleString()}
-                            </span>
                         </div>
-                        <div style={{ width: '44px', height: '44px', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <DollarSign style={{ width: '22px', height: '22px' }} />
-                        </div>
-                    </div>
+                    )}
 
-                    {/* Academic Staff */}
+                    {/* Fees Collection - Only for Admin and Bursar */}
+                    {(userRole === 'admin' || userRole === 'bursar') && (
+                        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <div>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Fee Collection Rate</span>
+                                <div style={{ fontSize: '26px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>
+                                    {safeNumber(metrics?.collection_rate)}%
+                                </div>
+                                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                    TZS {safeNumber(metrics?.total_collected).toLocaleString()}
+                                </span>
+                            </div>
+                            <div style={{ width: '44px', height: '44px', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <DollarSign style={{ width: '22px', height: '22px' }} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Faculty Headcount */}
                     <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                         <div>
                             <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Academic Staff</span>
@@ -249,46 +289,48 @@ export default function Dashboard({ term, metrics, recentPayments = [] }: Props)
                     </div>
                 </div>
 
-                {/* 3. Recent Real-Time Ledger Feed */}
-                <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                        <div>
-                            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>Recent Fee Receipts</h3>
-                            <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>Latest automated collections credited to accounts</p>
+                {/* 3. Recent Real-Time Ledger Feed (Only for Admin and Bursar) */}
+                {(userRole === 'admin' || userRole === 'bursar') && (
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                            <div>
+                                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>Recent Fee Receipts</h3>
+                                <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>Latest automated collections credited to accounts</p>
+                            </div>
+                            <Link href="/fees" style={{ fontSize: '12px', fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}>
+                                View All →
+                            </Link>
                         </div>
-                        <Link href="/fees" style={{ fontSize: '12px', fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}>
-                            View All →
-                        </Link>
-                    </div>
 
-                    {recentPayments.length === 0 ? (
-                        <div style={{ padding: '24px 0', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>
-                            No fee payments recorded this term yet.
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {recentPayments.map((p) => (
-                                <div key={p.receipt_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: '8px', backgroundColor: '#f9fafb', border: '1px solid #f3f4f6' }}>
-                                    <div>
-                                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
-                                            {p.last_name}, {p.first_name}
-                                            <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '6px', fontFamily: 'monospace' }}>({p.admission_number})</span>
+                        {recentPayments.length === 0 ? (
+                            <div style={{ padding: '24px 0', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>
+                                No fee payments recorded this term yet.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {recentPayments.map((p) => (
+                                    <div key={p.receipt_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: '8px', backgroundColor: '#f9fafb', border: '1px solid #f3f4f6' }}>
+                                        <div>
+                                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
+                                                {p.last_name}, {p.first_name}
+                                                <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '6px', fontFamily: 'monospace' }}>({p.admission_number})</span>
+                                            </div>
+                                            <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                                {p.receipt_number} • {p.payment_method}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                                            {p.receipt_number} • {p.payment_method}
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669' }}>
+                                                + TZS {safeNumber(p.amount).toLocaleString()}
+                                            </div>
+                                            <div style={{ fontSize: '10px', color: '#9ca3af' }}>{new Date(p.created_at).toLocaleDateString()}</div>
                                         </div>
                                     </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669' }}>
-                                            + TZS {safeNumber(p.amount).toLocaleString()}
-                                        </div>
-                                        <div style={{ fontSize: '10px', color: '#9ca3af' }}>{new Date(p.created_at).toLocaleDateString()}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
             </div>
         </AuthenticatedLayout>

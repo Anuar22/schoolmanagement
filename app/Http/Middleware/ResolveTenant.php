@@ -14,9 +14,8 @@ class ResolveTenant
 
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Skip tenant resolution entirely on public auth lifecycle routes
+        // 1. Skip rigid checks on public authentication lifecycle routes
         if ($request->is('logout', 'login', 'register', 'password/*', '/')) {
-            // If local and a tenant exists, attach for branding if available
             $tenant = DB::table('tenants')->where('is_active', true)->first();
             if ($tenant) {
                 $this->tenantManager->setTenant($tenant);
@@ -31,7 +30,7 @@ class ResolveTenant
             $tenant = DB::table('tenants')->where('id', $request->user()->tenant_id)->first();
         }
 
-        // 3. Resolve via Subdomain
+        // 3. Resolve via Subdomain (e.g., demo.educore.test)
         if (!$tenant) {
             $host = $request->getHost();
             $parts = explode('.', $host);

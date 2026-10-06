@@ -3,26 +3,39 @@
 namespace App\Http\Controllers\Academic;
 
 use App\Http\Controllers\Controller;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use App\Services\AuditLogger;
 
 class FeeManagementController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $term = DB::table('terms')->where('is_active', true)->first();
+        $user = $request->user();
+        $tenantId = $user->tenant_id;
 
-        // 1. Overall Financial Summary
-        $totalInvoiced = DB::table('fee_invoices')->sum('total_amount') ?? 0;
-        $totalCollected = DB::table('fee_invoices')->sum('paid_amount') ?? 0;
+        $term = DB::table('terms')
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->first();
+
+        // 1. Overall Financial Summary Scoped to Tenant
+        $totalInvoiced = (float) (DB::table('fee_invoices')
+            ->where('tenant_id', $tenantId)
+            ->sum('total_amount') ?? 0);
+
+        $totalCollected = (float) (DB::table('fee_invoices')
+            ->where('tenant_id', $tenantId)
+            ->sum('paid_amount') ?? 0);
+
         $totalOutstanding = $totalInvoiced - $totalCollected;
         $collectionRate = $totalInvoiced > 0 ? round(($totalCollected / $totalInvoiced) * 100, 1) : 0;
 
         // 2. Student Invoices List
         $invoices = DB::table('fee_invoices')
+            ->where('fee_invoices.tenant_id', $tenantId)
             ->join('students', 'fee_invoices.student_id', '=', 'students.id')
             ->join('classes', 'students.class_id', '=', 'classes.id')
             ->select(
@@ -38,7 +51,7 @@ class FeeManagementController extends Controller
                 'classes.name as class_name',
                 'classes.stream'
             )
-            ->orderBy('fee_invoices.created_at', 'desc')
+            ->orderByDesc('fee_invoices.created_at')
             ->get()
             ->map(function ($inv) {
                 return [
@@ -58,9 +71,9 @@ class FeeManagementController extends Controller
         return Inertia::render('Academic/FeeLedger', [
             'term' => $term,
             'metrics' => [
-                'total_invoiced' => (float) $totalInvoiced,
-                'total_collected' => (float) $totalCollected,
-                'total_outstanding' => (float) $totalOutstanding,
+                'total_invoiced' => $totalInvoiced,
+                'total_collected' => $totalCollected,
+                'total_outstanding' => $totalOutstanding,
                 'collection_rate' => $collectionRate,
             ],
             'invoices' => $invoices,
@@ -69,6 +82,9 @@ class FeeManagementController extends Controller
 
     public function recordPayment(Request $request)
     {
+        $user = $request->user();
+        $tenantId = $user->tenant_id;
+
         $validated = $request->validate([
             'invoice_id' => 'required|uuid',
             'amount' => 'required|numeric|min:1',
@@ -76,41 +92,78 @@ class FeeManagementController extends Controller
             'reference_code' => 'nullable|string|max:100',
         ]);
 
-        $invoice = DB::table('fee_invoices')->where('id', $validated['invoice_id'])->first();
+        $invoice = DB::table('fee_invoices')
+            ->where('tenant_id', $tenantId)
+            ->where('id', $validated['invoice_id'])
+            ->first();
+
         if (!$invoice) {
-            return back()->withErrors(['error' => 'Invoice not found']);
+            return back()->withErrors(['error' => 'Invoice not found or unauthorized.']);
         }
 
+        $currentBalance = (float) $invoice->total_amount - (float) $invoice->paid_amount;
+        if ((float) $validated['amount'] > $currentBalance) {
+            return back()->withErrors(['amount' => 'Payment amount cannot exceed the outstanding balance.']);
+        }
+
+        $paymentId = (string) Str::uuid();
+        $receiptNumber = 'REC-' . strtoupper(Str::random(8));
         $newPaidTotal = (float) $invoice->paid_amount + (float) $validated['amount'];
+
         $newStatus = match (true) {
             $newPaidTotal >= (float) $invoice->total_amount => 'PAID',
             $newPaidTotal > 0 => 'PARTIAL',
             default => 'UNPAID'
         };
 
-        DB::transaction(function () use ($validated, $invoice, $newPaidTotal, $newStatus) {
-            // Log Payment Entry
+        DB::transaction(function () use ($validated, $invoice, $newPaidTotal, $newStatus, $tenantId, $user, $paymentId, $receiptNumber) {
+            // 1. Log Payment Entry
             DB::table('fee_payments')->insert([
-                'id' => (string) Str::uuid(),
-                'receipt_number' => 'REC-' . strtoupper(Str::random(8)),
+                'id' => $paymentId,
+                'tenant_id' => $tenantId,
+                'receipt_number' => $receiptNumber,
                 'fee_invoice_id' => $invoice->id,
                 'amount' => $validated['amount'],
                 'payment_method' => $validated['payment_method'],
                 'reference_code' => $validated['reference_code'] ?? null,
                 'payment_date' => now()->toDateString(),
-                'received_by' => auth()->id() ?? 1,
+                'received_by' => $user->id,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // Update Invoice Paid Amount and Status
-            DB::table('fee_invoices')->where('id', $invoice->id)->update([
-                'paid_amount' => $newPaidTotal,
-                'status' => $newStatus,
-                'updated_at' => now(),
-            ]);
+            // 2. Update Invoice Paid Amount and Status
+            DB::table('fee_invoices')
+                ->where('tenant_id', $tenantId)
+                ->where('id', $invoice->id)
+                ->update([
+                    'paid_amount' => $newPaidTotal,
+                    'status' => $newStatus,
+                    'updated_at' => now(),
+                ]);
+
+            // 3. Write Immutable Audit Trail
+            AuditLogger::record(
+                action: 'FEE_PAYMENT_RECORDED',
+                entityType: 'FeePayment',
+                entityId: $paymentId,
+                oldValues: [
+                    'invoice_id' => $invoice->id,
+                    'previous_paid' => (float) $invoice->paid_amount,
+                    'previous_balance' => (float) ($invoice->total_amount - $invoice->paid_amount),
+                    'previous_status' => $invoice->status,
+                ],
+                newValues: [
+                    'amount_paid' => (float) $validated['amount'],
+                    'new_paid_total' => $newPaidTotal,
+                    'new_balance' => (float) ($invoice->total_amount - $newPaidTotal),
+                    'new_status' => $newStatus,
+                    'receipt_number' => $receiptNumber,
+                    'payment_method' => $validated['payment_method'],
+                ]
+            );
         });
 
-        return back()->with('success', 'Payment recorded successfully');
+        return back()->with('success', 'Payment recorded successfully.');
     }
 }

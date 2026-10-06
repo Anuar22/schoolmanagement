@@ -33,13 +33,16 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // Clear any stale intended session redirects from earlier logins
+        $request->session()->forget('url.intended');
+
+        return redirect()->route('dashboard');
     }
 
     /**
      * Destroy an authenticated session.
      */
-    public function destroy(Request $request): \Illuminate\Http\RedirectResponse
+    public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
 

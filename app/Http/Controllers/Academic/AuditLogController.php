@@ -4,17 +4,6 @@ namespace App\Http\Controllers\Academic;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-
-class AuditLogController extends Controller
-{
-    //
-}
-<?php
-
-namespace App\Http\Controllers\Academic;
-
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 

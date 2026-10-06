@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Traits\BelongsToTenant;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,7 +11,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, BelongsToTenant;
 
     /**
      * The attributes that are mass assignable.
@@ -22,8 +22,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role',       
-        'tenant_id',  
+        'role',
+        'tenant_id',
     ];
 
     /**
@@ -46,9 +46,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => 'string',
         ];
     }
-    // Add inside the User class:
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin' || $this->role === 'super_admin';
