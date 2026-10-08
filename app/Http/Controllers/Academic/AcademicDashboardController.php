@@ -66,7 +66,6 @@ class AcademicDashboardController extends Controller
             ->get();
 
         // 6. Longitudinal Progression per Subject
-        // Schema-agnostic: groups by assessments.id and joins subjects/grades safely
         $assessmentsProgress = DB::table('assessments')
             ->where('assessments.tenant_id', $tenantId)
             ->join('subjects', 'assessments.subject_id', '=', 'subjects.id')
@@ -189,6 +188,16 @@ class AcademicDashboardController extends Controller
             : null;
 
         return Inertia::render('Admin/Dashboard', [
+            // Explicit auth payload ensures user identity & role render correctly
+            'auth' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => strtolower($user->role ?? 'admin'),
+                    'tenant_id' => $user->tenant_id,
+                ],
+            ],
             'activeTerm' => $activeTerm,
             'kpis' => [
                 'total_students' => $totalStudents,
@@ -311,6 +320,16 @@ class AcademicDashboardController extends Controller
             ->exists();
 
         return Inertia::render('Teacher/Dashboard', [
+            // Explicit auth payload ensures user identity & role render correctly
+            'auth' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => strtolower($user->role ?? 'teacher'),
+                    'tenant_id' => $user->tenant_id,
+                ],
+            ],
             'activeTerm' => $activeTerm,
             'metrics' => [
                 'total_allocations' => $workload->count(),
@@ -397,6 +416,15 @@ class AcademicDashboardController extends Controller
             ->get();
 
         return Inertia::render('Academic/AcademicDesk', [
+            'auth' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => strtolower($user->role ?? 'teacher'),
+                    'tenant_id' => $user->tenant_id,
+                ],
+            ],
             'term' => $term,
             'summary' => [
                 'average_score' => $averageScore,

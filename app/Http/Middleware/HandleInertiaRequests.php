@@ -2,39 +2,22 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Illuminate\Support\Facades\DB;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that is loaded on the first page visit.
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Determine the current asset version.
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
-        $tenantManager = app(TenantManager::class);
         $user = $request->user();
-
-        // Query fresh attributes directly to ensure the exact PostgreSQL role is loaded
-        $role = $user ? ($user->fresh()?->role ?? $user->role ?? 'teacher') : null;
 
         return [
             ...parent::share($request),
@@ -43,11 +26,13 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'role' => $role,
+                    'role' => strtolower($user->role ?? 'teacher'),
                     'tenant_id' => $user->tenant_id,
                 ] : null,
             ],
-            'tenant' => $tenantManager->getTenant(),
+            'tenant' => $user && $user->tenant_id 
+                ? \Illuminate\Support\Facades\DB::table('tenants')->where('id', $user->tenant_id)->first() 
+                : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
